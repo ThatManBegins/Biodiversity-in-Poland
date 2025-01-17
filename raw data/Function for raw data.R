@@ -42,7 +42,41 @@ download_raw_data = function(file_id = "1l1ymMg-K_xLriFv1b8MgddH851d6n2sU" ,
 }
 
 
-# Function process_raw_data -----------------------------------------------
+# Function to convert large csv to sqlite -----------------------------------------------
 
+
+# This fuction takes a huge csv and puts it in a sqlite database 
+# csv_file = location of a huge file,
+# conn = location of sqlite database,
+# table_name = name of the table to creat in the sqlite db,
+# chunk_size = num of rows you want to be read at a time default = 500000
+
+
+csv_to_sqlite = function(csv_file, conn, table_name, chunk_size = 500000)
+{
+  # Open the CSV file for reading
+  file_con <- file(csv_file, "r")
+  header <- readLines(file_con, n = 1)  # Read header
+  col_names <- strsplit(header, ",")[[1]]  # Parse column names
+  
+  # Process file in chunks
+  repeat {
+    # Read a chunk of lines
+    lines <- readLines(file_con, n = chunk_size)
+    
+    # Break if no more lines
+    if (length(lines) == 0) break
+    
+    # Convert lines to a data.table
+    chunk <- fread(paste(c(header, lines), collapse = "\n"), header = TRUE)
+    
+    # Append chunk to SQLite database
+    dbWriteTable(conn, table_name, chunk, append = TRUE, row.names = FALSE)
+  }
+  
+  # Close file connection
+  close(file_con)
+  
+}
 
 

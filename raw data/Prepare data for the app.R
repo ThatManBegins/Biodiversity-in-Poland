@@ -7,7 +7,9 @@ if (!require(dbplyr)) install.packages("dbplyr")
 if (!require(data.table)) install.packages("data.table")
 if (!require(here)) install.packages("here")
 if (!require(vroom)) install.packages("vroom")
+if (!require(readr)) install.packages("readr")
 
+library(readr)
 library(RSQLite)
 library(tidyverse)
 library(DBI)
@@ -26,35 +28,48 @@ downloaded_data = download_raw_data()
 # extracting the downloaded data
 untar(downloaded_data, exdir = "./raw data")
 
+# preparing a SQLite database from the extracted data
 # Connect to SQLite database
-# con <- dbConnect(RSQLite::SQLite(), "./raw data/biodiversity-data/large_files_database.sqlite3")
-mydb = dbConnect(RSQLite::SQLite(), here("raw data/biodiversity-data", "large_files_database.sqlite3"))
+conn_sql <- dbConnect(RSQLite::SQLite(), here("raw data/biodiversity-data", "large_csv_database.sqlite"))
 
-# source: https://www.michaelc-m.com/manual_posts/2022-01-27-big-CSV-SQL.html
-# here we read the massive 19.5gb occurence.csv and put it in a table called "occurence" in large_file_database.sqlite3
-read_csv_chunked(here("raw data/biodiversity-data", "occurence.csv"), 
-                 callback = function(chunk, dummy){
-                   dbWriteTable(mydb, "occurence", chunk, append = T)}, 
-                 chunk_size = 500000, col_types = "ccccccccccccccccccccccccccc")
+# writing Occurence Table
+csv_to_sqlite(csv_file = here("raw data/biodiversity-data", "occurence.csv"),
+              conn = conn_sql,
+              table_name = "Occurence_table")
 
-
-# here we read the 1,3gb multimedia.csv and put it in a table called "multimedia" in large_file_database.sqlite3
-read_csv_chunked(here("raw data/biodiversity-data", "multimedia.csv"), 
-                 callback = function(chunk, dummy){
-                   dbWriteTable(mydb, "multimedia", chunk, append = T)}, 
-                 chunk_size = 500000, col_types = NULL)
+# writing Multimedia Table
+csv_to_sqlite(csv_file = here("raw data/biodiversity-data", "multimedia.csv"),
+              conn = conn_sql,
+              table_name = "Multimedia_table")
 
 
+# Verify the data
+print(dbListTables(conn_sql))  # Should show the created table
+print(dbGetQuery(conn_sql, paste("SELECT COUNT(*) FROM", table_name)))  # Check row count
 
 # processing the data -----------------------------------------------------
-Occurence_table = tbl(mydb, "occurence") %>%
-  filter(country == "Poland") %>%
+
+
+Occurence_table = tbl(conn_sql, "Occurence_table") %>%
+  filter(country == "Poland",
+         !is.na(kingdom),
+         taxonRank == "species"
+         ) %>%
   collect()
 
-Multimedia_table = tbl(mydb,"multimedia") %>%
+Occurence_table_prep = Occurence_table %>%
+  mutate(eventDate = as.Date(eventDate, origin = "1970-01-01"),
+         eventDate = ymd(eventDate),
+         longitudeDecimal = as.numeric(longitudeDecimal),
+         latitudeDecimal = as.numeric(latitudeDecimal)
+         )
+
+Occurence_table_prep$coordinateUncertaintyInMeters
+
+Multimedia_table = tbl(conn_sql,"Multimedia_table") %>%
   collect()
   
-Multimedia_table = Multimedia_table %>%
+Multimedia_table_prep = Multimedia_table %>%
   filter(
     CoreId %in% Occurence_table$id
   )
@@ -65,8 +80,8 @@ Multimedia_table = Multimedia_table %>%
 # saving the prepared data in Rdata format --------------------------------
 
 save(
-  Occurence_table,
-  Multimedia_table,
+  Occurence_table_prep,
+  Multimedia_table_prep,
   
   file = "./Biodiversity-in-Poland/data/prepared_data.RData"
 )

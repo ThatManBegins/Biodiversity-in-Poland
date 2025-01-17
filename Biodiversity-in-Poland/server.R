@@ -2,15 +2,14 @@
 # This is the server logic of a Shiny web application. You can run the
 # application by clicking 'Run App' above.
 #
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
 
 
-# Define server logic required to draw a histogram
-function(input, output, session) {
+
+server = function(input, output, session) {
+  selected_species = searchModuleServer("search", data = Occurence_table_prep)
+  date_range = dateFilterModuleServer("date_filter")
+  summary_choice = summaryChoiceModuleServer("summary_choice")
   
-  
-  
+  mapModuleServer("map", data = Occurence_table_prep, selected_species = selected_species, date_range = date_range)
+  timelineModuleServer("timeline", data = Occurence_table_prep, selected_species = selected_species, date_range = date_range, summary_choice = summary_choice)
 }

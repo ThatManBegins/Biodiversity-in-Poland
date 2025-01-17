@@ -2,8 +2,14 @@
 .Rhistory
 .Rapp.history
 
+# finder hidden files
+.DS_Store
+Biodiversity-in-Poland/.DS_Store
+raw data/.DS_Store
+
 # Raw data
 raw data/biodiversity-data/
+
 
 # Session Data files
 .RData
